@@ -498,7 +498,7 @@ impl Index<usize> for CompactStrings {
 /// assert_eq!(iter.next(), None);
 /// ```
 #[must_use = "Iterators are lazy and do nothing unless consumed"]
-pub struct Iter<'a>(crate::compact_bytestrings::Iter<'a>);
+pub struct Iter<'a>(crate::shared::ByteStringIter<'a>);
 
 impl<'a> Iter<'a> {
     pub fn new(inner: &'a CompactStrings) -> Self {

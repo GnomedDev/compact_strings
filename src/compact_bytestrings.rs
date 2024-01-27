@@ -2,7 +2,8 @@ use core::{fmt::Debug, ops::Index};
 
 use alloc::vec::Vec;
 
-use crate::{metadata::Metadata, CompactStrings};
+#[allow(clippy::wildcard_imports)]
+use crate::{metadata::Metadata, shared::*, CompactStrings};
 
 /// A more compact but limited representation of a list of bytestrings.
 ///
@@ -128,12 +129,7 @@ impl CompactBytestrings {
     /// ```
     #[must_use]
     pub fn get(&self, index: usize) -> Option<&[u8]> {
-        let (start, len) = self.meta.get(index)?.as_tuple();
-        if cfg!(feature = "no_unsafe") {
-            self.data.get(start..start + len)
-        } else {
-            unsafe { Some(self.data.get_unchecked(start..start + len)) }
-        }
+        index_bytestr(&self.data, &self.meta, index)
     }
 
     /// Returns a reference to the bytestring stored in the [`CompactBytestrings`] at that position, without
@@ -159,8 +155,7 @@ impl CompactBytestrings {
     #[must_use]
     #[cfg(not(feature = "no_unsafe"))]
     pub unsafe fn get_unchecked(&self, index: usize) -> &[u8] {
-        let (start, len) = self.meta.get_unchecked(index).as_tuple();
-        self.data.get_unchecked(start..start + len)
+        index_bytestr_unchecked(&self.data, &self.meta, index)
     }
 
     /// Returns the number of bytestrings in the [`CompactBytestrings`], also referred to as its 'length'.
@@ -482,8 +477,8 @@ impl CompactBytestrings {
     /// assert_eq!(iterator.next(), None);
     /// ```
     #[inline]
-    pub fn iter(&self) -> Iter<'_> {
-        Iter::new(self)
+    pub fn iter(&self) -> ByteStringIter<'_> {
+        ByteStringIter::new(&self.data, &self.meta)
     }
 }
 
@@ -548,80 +543,10 @@ impl Index<usize> for CompactBytestrings {
     }
 }
 
-/// Iterator over bytestrings in a [`CompactBytestrings`]
-///
-/// # Examples
-/// ```
-/// # use compact_strings::CompactBytestrings;
-/// let mut cmpbytes = CompactBytestrings::new();
-/// cmpbytes.push(b"One");
-/// cmpbytes.push(b"Two");
-/// cmpbytes.push(b"Three");
-///
-/// let mut iter = cmpbytes.into_iter();
-/// assert_eq!(iter.next(), Some(b"One".as_slice()));
-/// assert_eq!(iter.next(), Some(b"Two".as_slice()));
-/// assert_eq!(iter.next(), Some(b"Three".as_slice()));
-/// assert_eq!(iter.next(), None);
-/// ```
-#[must_use = "Iterators are lazy and do nothing unless consumed"]
-pub struct Iter<'a> {
-    data: &'a [u8],
-    iter: core::slice::Iter<'a, Metadata>,
-}
-
-impl<'a> Iter<'a> {
-    #[inline]
-    pub fn new(inner: &'a CompactBytestrings) -> Self {
-        Self {
-            data: &inner.data,
-            iter: inner.meta.iter(),
-        }
-    }
-}
-
-impl<'a> Iterator for Iter<'a> {
-    type Item = &'a [u8];
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let (start, len) = self.iter.next()?.as_tuple();
-
-        if cfg!(feature = "no_unsafe") {
-            self.data.get(start..start + len)
-        } else {
-            unsafe { Some(self.data.get_unchecked(start..start + len)) }
-        }
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
-    }
-}
-
-impl<'a> DoubleEndedIterator for Iter<'a> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        let (start, len) = self.iter.next_back()?.as_tuple();
-
-        if cfg!(feature = "no_unsafe") {
-            self.data.get(start..start + len)
-        } else {
-            unsafe { Some(self.data.get_unchecked(start..start + len)) }
-        }
-    }
-}
-
-impl ExactSizeIterator for Iter<'_> {
-    #[inline]
-    fn len(&self) -> usize {
-        self.iter.len()
-    }
-}
-
 impl<'a> IntoIterator for &'a CompactBytestrings {
     type Item = &'a [u8];
 
-    type IntoIter = Iter<'a>;
+    type IntoIter = ByteStringIter<'a>;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {

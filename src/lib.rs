@@ -29,4 +29,7 @@ mod compact_strings;
 pub use compact_strings::CompactStrings;
 mod compact_bytestrings;
 pub use compact_bytestrings::CompactBytestrings;
+mod fixed_bytestrings;
+pub use fixed_bytestrings::FixedBytestrings;
 mod metadata;
+mod shared;
